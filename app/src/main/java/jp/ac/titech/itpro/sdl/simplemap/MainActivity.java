@@ -10,6 +10,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -25,6 +26,10 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
+
+import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback,
         GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
@@ -36,6 +41,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private FusedLocationProviderClient fusedLocationProviderClient;
     private LocationRequest locationRequest;
     private LocationCallback locationCallback;
+    private ArrayList<LatLng> locations = new ArrayList<>();
+    private ArrayList<Marker> markerList = new ArrayList<>();
+    private Marker newMarker = null;
 
     private enum UpdatingState {STOPPED, REQUESTING, STARTED}
 
@@ -67,8 +75,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
 
         locationRequest = new LocationRequest();
-        locationRequest.setInterval(10000L);
-        locationRequest.setFastestInterval(5000L);
+        //locationRequest.setInterval(10000L);
+        //locationRequest.setFastestInterval(5000L);
         locationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
 
         locationCallback = new LocationCallback() {
@@ -85,6 +93,14 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
             }
         };
+
+        findViewById(R.id.update_button).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // update_buttonを押された時のコールバック
+                startLocationUpdate(true);
+            }
+        });
     }
 
     @Override
@@ -98,10 +114,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");
-        if (state != UpdatingState.STARTED && googleApiClient.isConnected())
+        /*if (state != UpdatingState.STARTED && googleApiClient.isConnected())
             startLocationUpdate(true);
         else
-            state = UpdatingState.REQUESTING;
+            state = UpdatingState.REQUESTING;*/
     }
 
     @Override
@@ -124,13 +140,39 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         Log.d(TAG, "onMapReady");
         map.moveCamera(CameraUpdateFactory.zoomTo(15f));
         googleMap = map;
+        final float[] result;
+        result = new float[3];
+
+        googleMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
+            @Override
+            public void onMapLongClick(LatLng longpushLocation) {
+                LatLng newlocation = new LatLng(longpushLocation.latitude, longpushLocation.longitude);
+                markerList.add( googleMap.addMarker(new MarkerOptions().position(newlocation)
+                        .title(""+longpushLocation.latitude+" :"+ longpushLocation.longitude)));
+
+                locations.add(newlocation);
+                if(locations.size() > 2){
+                    locations.remove(0);
+                    markerList.get(0).remove();
+                    markerList.remove(0);
+                }
+
+                if(locations.size() == 2) {
+                    Location.distanceBetween(newlocation.latitude, newlocation.longitude,
+                            locations.get(0).latitude, locations.get(0).longitude, result);
+                    Toast.makeText(getApplicationContext(),
+                            "Distance between the markers: " + String.valueOf(result[0] / 1000) + "km",
+                            Toast.LENGTH_LONG).show();
+                }
+            }
+        });
     }
 
     @Override
     public void onConnected(@Nullable Bundle bundle) {
         Log.d(TAG, "onConnected");
-        if (state == UpdatingState.REQUESTING)
-            startLocationUpdate(true);
+        //if (state == UpdatingState.REQUESTING)
+          //  startLocationUpdate(true);
     }
 
     @Override
@@ -145,6 +187,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void startLocationUpdate(boolean reqPermission) {
         Log.d(TAG, "startLocationUpdate");
+        // このfor文でPERMISSIONをすべてチェックしてから後の処理をする
         for (String permission : PERMISSIONS) {
             if (ContextCompat.checkSelfPermission(this, permission)
                     != PackageManager.PERMISSION_GRANTED) {
@@ -175,6 +218,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void stopLocationUpdate() {
         Log.d(TAG, "stopLocationUpdate");
         fusedLocationProviderClient.removeLocationUpdates(locationCallback);
-        state = UpdatingState.STOPPED;
+        //state = UpdatingState.STOPPED;
     }
 }
